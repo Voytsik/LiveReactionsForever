@@ -22,7 +22,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ---- Flask сервер для health check (щоб Render не вимкнув) ----
+# ---- Flask сервер для health check (Render вимагає HTTP-ендпоінт) ----
 flask_app = Flask('')
 
 @flask_app.route('/')
@@ -34,17 +34,17 @@ def health():
     return "OK", 200
 
 def run_flask():
+    """Запускає Flask-сервер у окремому потоці"""
     port = int(os.environ.get('PORT', 8080))
     flask_app.run(host='0.0.0.0', port=port)
 
-# ---- Основний бот ----
+# ---- Основний бот (ставлення реакцій) ----
 async def handle_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Ставить реакцію на новий пост у каналі"""
     channel_post = update.channel_post
     if not channel_post:
         return
 
-    # Перевіряємо, чи пост з нашого каналу
+    # Перевіряємо, чи це наш канал
     channel_username = channel_post.chat.username
     target_cleaned = TARGET_CHANNEL.lstrip('@')
     if channel_username != target_cleaned:
@@ -53,7 +53,7 @@ async def handle_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     logger.info(f"✅ Виявлено новий пост! ID: {channel_post.message_id}")
 
-    # Затримка 2-5 хвилин
+    # Випадкова затримка від 2 до 5 хвилин
     delay = random.randint(MIN_DELAY, MAX_DELAY)
     logger.info(f"⏳ Зачекаємо {delay} секунд...")
     await asyncio.sleep(delay)
@@ -71,31 +71,17 @@ async def handle_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"❌ Помилка при постановці реакції: {e}")
 
 async def run_bot():
-    """Запуск бота в режимі polling"""
+    """Запуск бота в режимі polling (у головному потоці)"""
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(MessageHandler(filters.ChatType.CHANNEL, handle_new_post))
     logger.info("🤖 Бот запущено в режимі POLLING. Очікуємо нові пости...")
     await application.run_polling()
 
-def start_bot_thread():
-    """Запускає асинхронний бот в окремому потоці"""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(run_bot())
-    except KeyboardInterrupt:
-        logger.info("Бот зупинено")
-    finally:
-        loop.close()
-
 if __name__ == "__main__":
-    # Запускаємо Flask-сервер у фоні (для health check)
+    # Запускаємо Flask у фоновому потоці (він не заважає сигналам)
     flask_thread = Thread(target=run_flask, daemon=True)
     flask_thread.start()
-    logger.info("Flask сервер для health check запущено")
+    logger.info("✅ Flask сервер для health check запущено")
 
-    # Запускаємо бота в головному потоці (або окремому - неважливо)
-    # Краще в окремому, щоб Flask міг відповідати на запити
-    bot_thread = Thread(target=start_bot_thread, daemon=False)
-    bot_thread.start()
-    bot_thread.join()  # Чекаємо завершення бота
+    # Запускаємо бота в головному потоці (щоб уникнути помилки set_wakeup_fd)
+    asyncio.run(run_bot())
