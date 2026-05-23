@@ -7,23 +7,22 @@ from flask import Flask
 from telegram import Update
 from telegram.ext import Updater, MessageHandler, Filters, CallbackContext
 
-# ------------------- CONFIGURATION -------------------
+# ---------- CONFIGURATION ----------
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
-# IMPORTANT: Replace with your channel's username (with @)
+# Replace with your channel's username (with @)
 TARGET_CHANNEL = '@t1246fdf' 
 REACTIONS_LIST = ['❤️', '🔥', '👍', '❤️‍🔥'] # Ваші реакції
 MIN_DELAY = 20  # 2 хвилини
 MAX_DELAY = 30  # 5 хвилин
-# ----------------------------------------------------
+# -----------------------------------
 
-# Setup logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# --- Flask server for Render health checks ---
+# Flask for Render health checks
 flask_app = Flask('')
 
 @flask_app.route('/')
@@ -34,14 +33,12 @@ def run_flask():
     port = int(os.environ.get('PORT', 8080))
     flask_app.run(host='0.0.0.0', port=port)
 
-# --- Main bot logic (synchronous) ---
+# Bot handler
 def handle_new_post(update: Update, context: CallbackContext):
-    """Called when a new post appears in a channel."""
     channel_post = update.channel_post
     if not channel_post:
         return
 
-    # Verify it's our target channel
     channel_username = channel_post.chat.username
     target_cleaned = TARGET_CHANNEL.lstrip('@')
     if channel_username != target_cleaned:
@@ -50,7 +47,6 @@ def handle_new_post(update: Update, context: CallbackContext):
 
     logger.info(f"✅ New post! ID: {channel_post.message_id}")
 
-    # Random delay
     delay = random.randint(MIN_DELAY, MAX_DELAY)
     logger.info(f"⏳ Waiting {delay} seconds...")
     time.sleep(delay)
@@ -67,19 +63,15 @@ def handle_new_post(update: Update, context: CallbackContext):
         logger.error(f"❌ Error setting reaction: {e}")
 
 def start_bot():
-    """Starts the bot using the synchronous Updater."""
     updater = Updater(token=BOT_TOKEN, use_context=True)
     dp = updater.dispatcher
     dp.add_handler(MessageHandler(Filters.chat_type.channel, handle_new_post))
     updater.start_polling()
     logger.info("🤖 Bot started (synchronous polling). Waiting for new posts...")
-    updater.idle()  # Keeps the bot running
+    updater.idle()
 
 if __name__ == "__main__":
-    # Start Flask in background thread
     flask_thread = Thread(target=run_flask, daemon=True)
     flask_thread.start()
     logger.info("✅ Flask health check server started.")
-
-    # Start bot in main thread (no asyncio issues)
     start_bot()
