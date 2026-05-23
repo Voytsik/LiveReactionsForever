@@ -1,21 +1,20 @@
 import random
 import os
-import logging
 import time
+import logging
 from threading import Thread
 from flask import Flask
 from telegram import Update
-from telegram.ext import Application, MessageHandler, filters, ContextTypes
+from telegram.ext import Updater, MessageHandler, Filters, CallbackContext
 
-# --- Configuration --------------------------------
-# Read bot token from environment variable
+# ------------------- CONFIGURATION -------------------
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
-# !!! IMPORTANT: Replace with your channel's username (e.g., '@my_cool_channel')
+# IMPORTANT: Replace with your channel's username (with @)
 TARGET_CHANNEL = '@t1246fdf' 
 REACTIONS_LIST = ['❤️', '🔥', '👍', '❤️‍🔥'] # Ваші реакції
 MIN_DELAY = 20  # 2 хвилини
 MAX_DELAY = 30  # 5 хвилин
-# ------------------------------------------------
+# ----------------------------------------------------
 
 # Setup logging
 logging.basicConfig(
@@ -24,7 +23,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# --- Flask server (required by Render for health checks) ---
+# --- Flask server for Render health checks ---
 flask_app = Flask('')
 
 @flask_app.route('/')
@@ -35,61 +34,52 @@ def run_flask():
     port = int(os.environ.get('PORT', 8080))
     flask_app.run(host='0.0.0.0', port=port)
 
-# --- The Main Bot Logic ---
-async def handle_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """This function is called whenever a new post appears in a channel."""
+# --- Main bot logic (synchronous) ---
+def handle_new_post(update: Update, context: CallbackContext):
+    """Called when a new post appears in a channel."""
     channel_post = update.channel_post
     if not channel_post:
         return
 
-    # Check if the post is from our target channel
+    # Verify it's our target channel
     channel_username = channel_post.chat.username
     target_cleaned = TARGET_CHANNEL.lstrip('@')
-    
-    # Ignore posts from other channels the bot might be in
     if channel_username != target_cleaned:
-        logger.info(f"Ignoring post from @{channel_username} (watching @{target_cleaned})")
+        logger.info(f"Ignoring post from @{channel_username}")
         return
 
-    logger.info(f"✅ New post detected! ID: {channel_post.message_id}")
+    logger.info(f"✅ New post! ID: {channel_post.message_id}")
 
-    # Wait for a random time between 2 and 5 minutes
+    # Random delay
     delay = random.randint(MIN_DELAY, MAX_DELAY)
-    logger.info(f"⏳ Waiting for {delay} seconds before reacting...")
-    await asyncio.sleep(delay)  # Don't forget to import asyncio at the top!
-    
-    # Choose a random reaction from our list
+    logger.info(f"⏳ Waiting {delay} seconds...")
+    time.sleep(delay)
+
     chosen_reaction = random.choice(REACTIONS_LIST)
     try:
-        # Set the reaction on the message
-        await context.bot.set_message_reaction(
+        context.bot.set_message_reaction(
             chat_id=channel_post.chat_id,
             message_id=channel_post.message_id,
             reaction=[chosen_reaction]
         )
-        logger.info(f"🎉 Successfully set reaction '{chosen_reaction}' on post {channel_post.message_id}!")
+        logger.info(f"🎉 Reaction {chosen_reaction} set on post {channel_post.message_id}!")
     except Exception as e:
-        logger.error(f"❌ Failed to set reaction on post {channel_post.message_id}. Error: {e}")
+        logger.error(f"❌ Error setting reaction: {e}")
 
-async def run_bot():
-    """Initializes and starts the bot in polling mode."""
-    # Create the Application instance
-    application = Application.builder().token(BOT_TOKEN).build()
-    
-    # Add a handler for channel posts.
-    # The new correct way: using filters.ChatType.CHANNEL
-    application.add_handler(MessageHandler(filters.ChatType.CHANNEL, handle_new_post))
-    
-    logger.info("🤖 Bot has started in POLLING mode. Waiting for new posts...")
-    # Start the bot (this will run forever)
-    await application.run_polling()
+def start_bot():
+    """Starts the bot using the synchronous Updater."""
+    updater = Updater(token=BOT_TOKEN, use_context=True)
+    dp = updater.dispatcher
+    dp.add_handler(MessageHandler(Filters.chat_type.channel, handle_new_post))
+    updater.start_polling()
+    logger.info("🤖 Bot started (synchronous polling). Waiting for new posts...")
+    updater.idle()  # Keeps the bot running
 
 if __name__ == "__main__":
-    # Start the Flask server in a background thread
+    # Start Flask in background thread
     flask_thread = Thread(target=run_flask, daemon=True)
     flask_thread.start()
     logger.info("✅ Flask health check server started.")
 
-    # Run the bot.
-    import asyncio
-    asyncio.run(run_bot())
+    # Start bot in main thread (no asyncio issues)
+    start_bot()
