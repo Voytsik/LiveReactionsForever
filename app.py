@@ -15,6 +15,11 @@ MIN_DELAY = 20  # 2 хвилини
 MAX_DELAY = 30  # 5 хвилин
 # -----------------------------------
 
+# Вже є Flask-додаток. Додайте:
+@app.route('/health')
+def health():
+    return "OK", 200
+
 logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     level=logging.INFO
