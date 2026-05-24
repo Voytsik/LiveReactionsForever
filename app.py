@@ -9,10 +9,10 @@ from flask import Flask
 # ---------- CONFIGURATION ----------
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 # Your channel username (with @, e.g., '@my_channel')
-TARGET_CHANNEL = '@t1246fdf' 
+TARGET_CHANNEL = '@vorefile_group_ua' 
 REACTIONS_LIST = ['❤️', '🔥', '👍', '❤️‍🔥'] # Ваші реакції
-MIN_DELAY = 20  # 2 хвилини
-MAX_DELAY = 30  # 5 хвилин
+MIN_DELAY = 60  # 2 хвилини
+MAX_DELAY = 120  # 5 хвилин
 # -----------------------------------
 
 logging.basicConfig(
