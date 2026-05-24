@@ -1,0 +1,15 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    # Виконувати кожні 10 хвилин (інтервал має бути меншим за 15 хвилин)
+    - cron: '*/10 * * * *'
+  workflow_dispatch:  # дозволяє запускати вручну з вкладки Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send HTTP request to Render service
+        run: |
+          curl -I -s -o /dev/null -w "%{http_code}\n" https://livereactionsforever.onrender.com/health
